@@ -359,7 +359,7 @@ function parse_multipart_chunk(chunk; require_contentdisposition::Bool=true)
     content_disposition_available = disposition_match !== nothing
 
     if !content_disposition_available && require_contentdisposition
-        return nothing  # Content disposition is mandatory for form-data
+        error("a part has no form-data name")
     end
 
     name = nothing
@@ -387,6 +387,7 @@ function parse_multipart_chunk(chunk; require_contentdisposition::Bool=true)
             flag_match === nothing && break
             content_disposition = SubString(content_disposition, sizeof(flag_match.match) + 1)
         end
+        name === nothing && require_contentdisposition && error("a part has no form-data name")
         name === nothing && return nothing
     end
 
@@ -450,6 +451,9 @@ Returns `nothing` when the content type is not `multipart/form-data` or there
 is no body. Each [`Multipart`](@ref) has the part's `name`, `filename` (or
 `nothing`), `contenttype`, and its content as the `IO` `data`. A body with
 more than `max_parts` parts throws an error; `max_parts = 0` removes the limit.
+Every form-data part must have `Content-Disposition: form-data` and a `name`
+parameter; otherwise parsing throws an error instead of skipping the part.
+An explicitly empty name (`name=""`) is accepted.
 
 # Examples
 ```jldoctest
@@ -528,6 +532,10 @@ form reads the header and body of a `Request` or `Response`.
 `nothing` when the content type does not match or there is no body. A body
 with more than `max_parts` parts throws an error; `max_parts = 0` removes the
 limit.
+
+For `multipart/form-data`, every part must have `Content-Disposition: form-data`
+and a `name` parameter (which may be empty); a missing name throws an error.
+Other subtypes, including `multipart/mixed`, do not require those headers.
 """
 function parse_multipart(
     content_type_header::Union{String,Nothing},

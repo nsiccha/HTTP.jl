@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v2.15.3] - 2026-11-12
+
+### Fixed
+- Multipart form parsing rejects a part without `Content-Disposition: form-data`
+  or its `name` parameter. Previously it silently discarded the part, even when
+  other parts were valid, so callers could accept an incomplete submission.
+  Explicitly empty names and parts without disposition in `multipart/mixed`
+  remain accepted.
+
 ## [v2.15.2] - 2026-11-11
 
 ### Fixed
