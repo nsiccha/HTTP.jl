@@ -1,0 +1,64 @@
+{
+  "schema": 1,
+  "line": {
+    "repo": "nsiccha/HTTP.jl",
+    "ref": "dogfood",
+    "sha": "21b98f8c2a341faac2619358bef6df3855f37c9f"
+  },
+  "upstream": {
+    "repo": "JuliaWeb/HTTP.jl",
+    "ref": "master",
+    "sha": "751eb0883651a6d88fe958cf74b98958e73f223f"
+  },
+  "prepared_at": "2026-11-18T12:00:08Z",
+  "problems": [
+    {
+      "id": "unnamed-form-data",
+      "role": "fix",
+      "title": "Allow callers to detect an unnamed multipart form field",
+      "summary": "The default parser can return a partial form after dropping an unnamed field. Upstream closed issue #1569 by documenting this behavior. This fork chooses strict parsing.",
+      "repairs": [],
+      "upstream_refs": [
+        {
+          "url": "https://github.com/JuliaWeb/HTTP.jl/issues/1569",
+          "relation": "reports"
+        },
+        {
+          "url": "https://github.com/JuliaWeb/HTTP.jl/pull/1571",
+          "relation": "related"
+        }
+      ],
+      "fix": {
+        "branch": "dogfood",
+        "commits": [
+          {
+            "sha": "21b98f8c2a341faac2619358bef6df3855f37c9f",
+            "title": "Integrate strict form parsing with HTTP 2.16 and its multipart/mixed handling",
+            "original": [
+              "4297c7153f8d30759b06d3430ac8fe5a80b73869"
+            ]
+          }
+        ],
+        "why_together": "The first-parent change of this merge (git cherry-pick -m 1) is the complete fix against the recorded upstream base. It reconciles the parser documentation, release metadata and regression tests with the newer upstream code. The original topic commit applies to 2.15.2."
+      },
+      "depends_on": [],
+      "requires": [],
+      "validation": [
+        {
+          "base": "751eb0883651a6d88fe958cf74b98958e73f223f",
+          "tests": [
+            "test/http_multipart_tests.jl"
+          ],
+          "result": "passed",
+          "detail": "438 checks passed, including 308 checks in the unnamed-field test set. The wider HTTP suite was outside this run. Tested dogfood commit 21b98f8c2a341faac2619358bef6df3855f37c9f.",
+          "julia": "1.10.12"
+        }
+      ],
+      "draft": {
+        "title": "Allow callers to detect an unnamed multipart form field",
+        "body": "HTTP 2.16 on Julia 1.10.12 documents that an unnamed field in a multipart form is skipped (#1569, #1571). An application that needs to validate the complete form cannot distinguish a missing field from one the parser discarded.\n\n**Example.** In memory, pass a form containing two text parts to `HTTP.parse_multipart_form`. Give one part the field name `message` and omit the name parameter from the other. The result contains only `message`. A strict caller expects the parser to report the incomplete form. An explicitly empty field name is a separate case.\n\n**Fork behavior.** The form-data parser reports a missing disposition or name. An explicitly empty name is accepted, and ordinary headerless multipart/mixed data still parses. An opt-in strict mode could provide that signal to upstream callers while preserving the documented default.",
+        "prepared_at": "2026-11-18T12:00:08Z"
+      }
+    }
+  ]
+}
