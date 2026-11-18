@@ -320,7 +320,7 @@ end
     @test !interned(replace(name, '-' => ""))
     # A required type still matches its subtype, dashes removed as before.
     @test length(HT.parse_multipart("multipart/mixed; boundary=b", body, :mixed)) == 1
-    @test HT.parse_multipart("multipart/form-data; boundary=b", body, :formdata) == HT.Multipart[]
+    @test_throws "a part has no form-data name" HT.parse_multipart("multipart/form-data; boundary=b", body, :formdata)
 end
 
 @testset "parse_multipart(request) overload" begin
@@ -387,33 +387,44 @@ end
     end
 end
 
-@testset "parse_multipart_chunk: disposition without name" begin
-    # Covers `name === nothing && return nothing` inside the `if content_disposition_available` block.
-    # A part with Content-Disposition but no name= field is silently skipped.
-    boundary = "skipbnd"
-    body_text = join([
-        "--$boundary",
-        "Content-Disposition: form-data; filename=\"nameless.txt\"",
-        "Content-Type: text/plain",
-        "",
-        "should be skipped",
-        "--$boundary",
-        "Content-Disposition: form-data; name=\"kept\"",
-        "Content-Type: text/plain",
-        "",
-        "kept value",
-        "--$boundary--",
-        "",
-    ], "\r\n")
-    body = Vector{UInt8}(body_text)
-    ct = "multipart/form-data; boundary=$boundary"
+@testset "form-data rejects unnamed parts without consuming the body" begin
+    part(headers, value) = "--b\r\n$headers\r\n\r\n$value\r\n"
+    file = part("Content-Disposition: form-data; name=\"file\"; filename=\"a.txt\"", "kept")
+    for headers in ("Content-Type: text/plain",
+                    "Content-Disposition: form-data; filename=\"nameless.txt\"",
+                    "Content-Disposition: form-data",
+                    "Content-Disposition: attachment; name=\"file\"")
+        unnamed = part(headers, "unnamed")
+        for content in (unnamed, unnamed * file, file * unnamed, unnamed * unnamed)
+            bytes = Vector{UInt8}(content * "--b--\r\n")
+            original = copy(bytes)
+            for media_type in ("multipart/form-data", "Multipart/Form-Data")
+                ct = "$media_type; boundary=b"
+                @test_throws "a part has no form-data name" HT.parse_multipart_form(ct, bytes)
+                @test_throws "a part has no form-data name" HT.parse_multipart(ct, bytes)
+                @test_throws "a part has no form-data name" HT.parse_multipart(ct, bytes, :formdata)
+                for message in (HT.Request("POST", "/"; headers=["Content-Type" => ct], body=bytes),
+                                HT.Response(200, ["Content-Type" => ct], bytes))
+                    @test_throws "a part has no form-data name" HT.parse_multipart_form(message)
+                    @test_throws "a part has no form-data name" HT.parse_multipart(message, :formdata)
+                    @test Vector{UInt8}(HT._message_body_bytes(message.body)) == original
+                end
+            end
+            @test bytes == original
+        end
+    end
 
-    parts = HT.parse_multipart_form(ct, body)
-    @test parts !== nothing
-    # the nameless part is skipped; only the named part survives
-    @test length(parts) == 1
-    @test parts[1].name == "kept"
-    @test String(read(parts[1])) == "kept value"
+    # An explicitly empty name is still a name. Repeated fields and files
+    # retain their order; mixed bodies still allow parts without disposition.
+    empty_name = part("Content-Disposition: form-data; name=\"\"", "empty")
+    field = part("Content-Disposition: form-data; name=\"field\"", "value")
+    bytes = Vector{UInt8}(empty_name * field * file * field * file * "--b--\r\n")
+    parts = HT.parse_multipart_form("multipart/form-data; boundary=b", bytes)
+    @test getproperty.(parts, :name) == ["", "field", "file", "field", "file"]
+    @test getproperty.(parts, :filename) == [nothing, nothing, "a.txt", nothing, "a.txt"]
+    @test String.(read.(parts)) == ["empty", "value", "kept", "value", "kept"]
+    mixed = Vector{UInt8}(part("Content-Type: text/plain", "mixed") * "--b--\r\n")
+    @test String(read(only(HT.parse_multipart_mixed("multipart/mixed; boundary=b", mixed)))) == "mixed"
 end
 
 @testset "Multipart IO interface methods (IOBuffer)" begin

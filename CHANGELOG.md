@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed on the dogfood branch
+- Multipart form parsing rejects unnamed form-data parts. An explicitly empty field name is accepted.
+
 ### Added
 - `WebSockets.listen!`, `WebSockets.serve!`, `WebSockets.listen`, and
   `WebSockets.Server` take `invokelatest = true`, as the HTTP server functions
