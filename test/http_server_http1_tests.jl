@@ -1219,6 +1219,28 @@ end
     end
 end
 
+@testset "HTTP server closes a connection that sends no request without a response" begin
+    for allow_h2c in (true, false)
+        server = HT.serve!(req -> HT.Response(200, "ok"), "127.0.0.1", 0; listenany = true, allow_h2c = allow_h2c)
+        try
+            @test _raw_http_request(HT.port(server), "") == ""
+            @test startswith(_raw_http_request(HT.port(server), "G"), "HTTP/1.1 400")
+        finally
+            _run_test_operation(() -> HT.forceclose(server))
+            _run_test_operation(() -> wait(server))
+        end
+        # A peer that stays silent still gets 408 once the header deadline passes.
+        server = HT.serve!(req -> HT.Response(200, "ok"), "127.0.0.1", 0;
+            listenany = true, allow_h2c = allow_h2c, read_header_timeout_ns = 1)
+        try
+            @test startswith(_raw_http_request(HT.port(server), ""; close_write = false), "HTTP/1.1 408")
+        finally
+            _run_test_operation(() -> HT.forceclose(server))
+            _run_test_operation(() -> wait(server))
+        end
+    end
+end
+
 @testset "HTTP server timeout and handler error responses" begin
     timeout_server = HT.Server(
         address = "127.0.0.1:0",
@@ -2308,6 +2330,28 @@ end
     finally
         _run_test_operation(() -> HT.forceclose(server))
         _run_test_operation(() -> wait(server))
+    end
+end
+
+@testset "HTTP server stream handlers see chunked request trailers" begin
+    raw_request(address) = "POST / HTTP/1.1\r\nHost: $(address)\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n" *
+                           "5\r\nhello\r\n0\r\nX-Sum: 42\r\n\r\n"
+    echo(req) = HT.Response(200, "trailer=" * HT.header(req.trailers, "X-Sum", "none"))
+    stream_echo = function (stream)
+        req = HT.startread(stream)
+        _ = read(stream)
+        write(stream, "trailer=" * HT.header(req.trailers, "X-Sum", "none"))
+        return nothing
+    end
+    for handler in (stream_echo, HT.streamhandler(echo))
+        server = HT.listen!(handler, "127.0.0.1", 0; listenany = true)
+        try
+            raw = _raw_http_request(HT.port(server), raw_request(HT.server_addr(server)))
+            @test occursin("trailer=42", raw)
+        finally
+            _run_test_operation(() -> HT.forceclose(server))
+            _run_test_operation(() -> wait(server))
+        end
     end
 end
 

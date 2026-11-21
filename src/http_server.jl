@@ -263,14 +263,15 @@ end
 
 # Rebuild through the positional internal constructor rather than the public
 # keyword form: a `Core.kwcall` in this path is not statically resolvable
-# under `juliac --trim`, and the keyword constructor's copy semantics are
-# reproduced explicitly here.
+# under `juliac --trim`. Headers are copied, as the keyword constructor does.
+# Trailers are shared instead: the body reader fills this collection when the
+# body ends, so a handler sees them once it has read the body.
 function _stream_request_metadata(request::Request)::Request{EmptyBody}
     return _request_nocopy(
         request.method,
         request.target,
         copy(request.headers),
-        copy(request.trailers),
+        request.trailers,
         EmptyBody(),
         request.host,
         Int64(request.content_length),
@@ -1283,6 +1284,10 @@ function _serve_h1_conn!(server::Server, tracked::_ServerConn, reader_source, he
             header_deadline_armed || _set_read_deadline_for_header!(server, tracked.conn)
             header_deadline_armed = false
             request = try
+                # A peer that closes before its first byte sent no request, so it
+                # gets no 400. Later requests were checked the same way after the
+                # previous response, and arrive with bytes already buffered.
+                _conn_reader_available(reader) == 0 && _fill_conn_reader!(reader) == 0 && return nothing
                 read_request(reader; max_header_bytes=server.max_header_bytes)
             catch err
                 action = _classify_server_conn_error(err::Exception)
