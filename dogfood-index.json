@@ -3,14 +3,14 @@
   "line": {
     "repo": "nsiccha/HTTP.jl",
     "ref": "dogfood",
-    "sha": "21b98f8c2a341faac2619358bef6df3855f37c9f"
+    "sha": "6f7e117f4adabfaa180db7ba0df0ed3de0b630d1"
   },
   "upstream": {
     "repo": "JuliaWeb/HTTP.jl",
     "ref": "master",
-    "sha": "751eb0883651a6d88fe958cf74b98958e73f223f"
+    "sha": "81afc05e2cb11a806fa93a07b0cda4333f86eb17"
   },
-  "prepared_at": "2026-11-18T12:00:08Z",
+  "prepared_at": "2026-11-21T11:47:28Z",
   "problems": [
     {
       "id": "unnamed-form-data",
@@ -44,6 +44,17 @@
       "depends_on": [],
       "requires": [],
       "validation": [
+        {
+          "base": "81afc05e2cb11a806fa93a07b0cda4333f86eb17",
+          "result": "passed",
+          "julia": "1.10.12",
+          "tests": [
+            "test/http_multipart_tests.jl",
+            "test/http_server_http1_tests.jl",
+            "test/http2_server_tests.jl"
+          ],
+          "detail": "All 1,530 checks in the three files passed on Linux (438 multipart, 643 HTTP/1 server, 449 HTTP/2 server). The indexed first-parent fix applied to upstream master and reproduced the tested tree. Tested dogfood commit 6f7e117f4adabfaa180db7ba0df0ed3de0b630d1."
+        },
         {
           "base": "751eb0883651a6d88fe958cf74b98958e73f223f",
           "tests": [
